@@ -76,7 +76,7 @@ void usart_init() {
     GPIO_Init(GPIOA , &GPIO_Settings);
 
     USART_StructInit(&USART_Settrings);
-    USART_Settrings.USART_BaudRate = 9600;
+    USART_Settrings.USART_BaudRate = 115200;
     USART_Settrings.USART_WordLength = USART_WordLength_8b;
     USART_Settrings.USART_StopBits = USART_StopBits_1;
     USART_Settrings.USART_Parity = USART_Parity_No;
