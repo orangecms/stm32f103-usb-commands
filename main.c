@@ -40,21 +40,41 @@ void init_output(void) {
 
     // enable clock on APB2
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
 
-    // configure port A1 for driving an LED
+    // configure port A1 for output
     GPIO_Settings.GPIO_Pin = GPIO_Pin_1;
     GPIO_Settings.GPIO_Mode = GPIO_Mode_Out_PP;    // output push-pull mode
     GPIO_Settings.GPIO_Speed = GPIO_Speed_50MHz;   // highest speed
     GPIO_Init(GPIOA, &GPIO_Settings) ;             // initialize port
+    // configure port C13 for output
+    GPIO_Settings.GPIO_Pin = GPIO_Pin_13;
+    GPIO_Settings.GPIO_Mode = GPIO_Mode_Out_PP;    // output push-pull mode
+    GPIO_Settings.GPIO_Speed = GPIO_Speed_50MHz;   // highest speed
+    GPIO_Init(GPIOC, &GPIO_Settings) ;             // initialize port
 }
 
-// TODO: check a flag, and call init_output() in not initialized
-void turn_on_pa1(void) {
-    GPIO_SetBits(GPIOA, GPIO_Pin_1);
+// send one byte through USART
+void usart_send(const char chr) {
+    while(!(USART1->SR & USART_SR_TC));
+    USART1->DR = chr;
 }
 
-void turn_off_pa1(void) {
-    GPIO_ResetBits(GPIOA, GPIO_Pin_1);
+// send a string through USART
+void usart_send_string(const char *s) {
+    int i=0;
+    while (s[i]) {
+        usart_send(s[i++]);
+    }
+}
+
+void usart_send_newline(void) {
+    usart_send_string(CRLF);
+}
+
+void usart_send_line(const char *s) {
+    usart_send_string(s);
+    usart_send(LF);
 }
 
 void usart_init() {
@@ -89,29 +109,25 @@ void usart_init() {
     __enable_irq();
     USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
     NVIC_EnableIRQ(USART1_IRQn);
+    usart_send_line(HELLO);
 }
 
-// send one byte through USART
-void usart_send(const char chr) {
-    while(!(USART1->SR & USART_SR_TC));
-    USART1->DR = chr;
+// TODO: check a flag, and call init_output() in not initialized
+void turn_on_pa1(void) {
+    GPIO_SetBits(GPIOA, GPIO_Pin_1);
 }
 
-// send a string through USART
-void usart_send_string(const char *s) {
-    int i=0;
-    while (s[i]) {
-        usart_send(s[i++]);
-    }
+void turn_off_pa1(void) {
+    GPIO_ResetBits(GPIOA, GPIO_Pin_1);
 }
 
-void usart_send_newline(void) {
-    usart_send_string(CRLF);
+// NOTE: this one is inverted!
+void turn_off_pc13(void) {
+    GPIO_SetBits(GPIOC, GPIO_Pin_13);
 }
 
-void usart_send_line(const char *s) {
-    usart_send_string(s);
-    usart_send_string(CRLF);
+void turn_on_pc13(void) {
+    GPIO_ResetBits(GPIOC, GPIO_Pin_13);
 }
 
 void handle_command(char *command) {
@@ -119,6 +135,10 @@ void handle_command(char *command) {
         turn_on_pa1();
     } else if (is_equal(command, A1_OFF) == 0) {
         turn_off_pa1();
+    } else if (is_equal(command, C13_ON) == 0) {
+        turn_on_pc13();
+    } else if (is_equal(command, C13_OFF) == 0) {
+        turn_off_pc13();
     } else {
         usart_send_line(UNKNOWN_COMMAND);
     }
@@ -151,6 +171,18 @@ void USART1_IRQHandler() {
             }
 
             usart_buf[usart_buf_length++] = received;
+
+            if (received == 0x0b) {
+                return;
+            }
+            if (
+                received == 0x05 &&
+                usart_buf[0] == 0x0b
+            ) {
+                usart_send_linef(VERSION);
+                usart_buf_length = 0;
+                return;
+            }
 
             // echo
             usart_send(received);
